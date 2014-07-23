@@ -1,0 +1,106 @@
+Project: Prediction of Weight Lifting Style using Accelerometer Data
+====================================================================
+Practical Machine Learning Course, Coursera
+Name: Matthew Rees
+email: matthew_rees@hotmail.com
+
+
+Introduction:
+=================
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+Aim:
+======
+The goal of this project is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to determine their weight lifting form. 
+
+Data
+=====
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv. The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+
+Data loading and pre-processing:
+===============================
+```{r}
+setwd("~/Coursera/PML")
+pre.training <- read.csv("pml-training.csv")
+final.test <- read.csv("pml-testing.csv")
+
+names(pre.training)
+
+library(caret)
+
+#set seed to ensure reproducibility
+set.seed(344844)
+
+trainingIndex <- createDataPartition(pre.training$classe, list = FALSE, p = 0.8)
+training = pre.training[trainingIndex, ]
+testing = pre.training[-trainingIndex, ]
+
+#Remove indicators with near zero variance:
+nearzero <- nearZeroVar(training)
+
+training <- training[-nearzero]
+testing <- testing[-nearzero]
+final.test <- final.test[-nearzero]
+
+#Filter columns to only include numeric features and outcome. Integer and other non- lead to misclassifications when used to predict values in the test set. 
+
+number.features = which(lapply(training, class) %in% c("numeric"))
+
+#Perform imputation for treatment of missing values
+
+Model1 <- preProcess(training[, number.features], method = c("knnImpute"))
+
+library(RANN)
+
+ptraining <- cbind(training$classe, predict(Model1, training[, number.features]))
+
+ptesting <- cbind(testing$classe, predict(Model1, testing[, number.features]))
+
+final.test2 <- predict(Model1, final.test[, number.features])
+
+# Fix Label on classe
+names(ptraining)[1] <- "classe"
+names(ptesting)[1] <- "classe"
+```
+
+Model 
+=======
+Construct a random forest model using numerical variables from the data set. 
+```{r}
+library(randomForest)
+
+rfmod<- randomForest(classe~., ptraining, ntree=500, mtry=32)
+```
+
+Cross-validation 
+================
+**In-sample:**
+
+The model is 100% accurate on the in-sample test. 
+```{r}
+training.prediction <- predict(rfmod, ptraining)
+print(confusionMatrix(training.prediction, ptraining$classe))
+```
+
+**Out-of-sample:**
+
+The cross validation accuracy is greater than 99%, which should be sufficient for predicting the twenty test observations.
+```{r}
+testing.prediction <- predict(rfmod, ptesting)
+print(confusionMatrix(testing.prediction, ptesting$classe))
+```
+
+**Final.Test results:**
+
+Applying the prediction model to the test set yields 100% test accuracy.
+```{r}
+answers <- predict(rfmod, final.test2)
+answers
+```
+
+Conclusion:
+============
+The use of accelerometer data provides accurate predictions of good weight lifting styles. 
